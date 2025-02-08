@@ -1,0 +1,115 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Course Development Cost Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        select, input { padding: 5px; }
+        .right { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>Course Development Cost Calculator</h1>
+    <div>
+        <label>
+            <input type="checkbox" id="calculateByUnit" onchange="updateCalculations()">
+            Calculate by units/week
+        </label>
+    </div>
+    <table id="courseTable">
+        <thead>
+            <tr>
+                <th>Course</th>
+                <th>Weeks</th>
+                <th class="units-column" style="display:none">Units per Week</th>
+                <th>Development Level</th>
+                <th class="right">Cost</th>
+            </tr>
+        </thead>
+        <tbody id="courseList">
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="right"><strong>Total:</strong></td>
+                <td class="right" id="totalCost">$0</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <script>
+        const developmentLevels = {
+            'Simple Async': 4329,
+            'Simple Sync': 2408,
+            'Average Async': 7067,
+            'Average Sync': 4116,
+            'Complex Async': 10212,
+            'Complex Sync': 6216,
+            'Complex Async + Video': 20212,
+            'Complex Sync + Video': 16216
+        };
+
+const courses = [
+    { id: 1, name: 'Continuing Education', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 2, name: 'Prevention of Sexual Abuse in Optometric Practice', weeks: 2, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 3, name: 'Foundational Concepts of Professional Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 4, name: 'Health Promotion and Caring for Self, Colleagues and Clients', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 5, name: 'Holistic Health Assessment I (Theory/Lab-based)', weeks: 14, level: 'Complex Sync + Video', unitsPerWeek: 1 },
+    { id: 6, name: 'Human Anatomy (including simulation)', weeks: 16, level: 'Complex Sync + Video', unitsPerWeek: 1 },
+    { id: 7, name: 'Human Physiology (including simulation)', weeks: 16, level: 'Complex Sync + Video', unitsPerWeek: 1 },
+    { id: 8, name: 'Foundational Concepts of Professional Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 9, name: 'Health Promotion and Caring for Self, Colleagues and Clients II', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 },
+    { id: 10, name: 'Writing for Professional Success in Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1 }
+];
+
+        function createRow(course) {
+            return `
+                <tr>
+                    <td>${course.name}</td>
+                    <td>${course.weeks}</td>
+                    <td class="units-column" style="display:none">
+                        <input type="number" min="1" value="${course.unitsPerWeek}" 
+                            onchange="updateCalculations()" data-id="${course.id}">
+                    </td>
+                    <td>
+                        <select onchange="updateCalculations()" data-id="${course.id}">
+                            ${Object.keys(developmentLevels).map(level => 
+                                `<option value="${level}" ${level === course.level ? 'selected' : ''}>
+                                    ${level}
+                                </option>`
+                            ).join('')}
+                        </select>
+                    </td>
+                    <td class="right" id="cost-${course.id}">$0</td>
+                </tr>
+            `;
+        }
+
+        function updateCalculations() {
+            const calculateByUnit = document.getElementById('calculateByUnit').checked;
+            const unitsColumns = document.querySelectorAll('.units-column');
+            unitsColumns.forEach(col => col.style.display = calculateByUnit ? '' : 'none');
+
+            let total = 0;
+            courses.forEach(course => {
+                const level = document.querySelector(`select[data-id="${course.id}"]`).value;
+                const unitsPerWeek = calculateByUnit ? 
+                    parseInt(document.querySelector(`input[data-id="${course.id}"]`).value) : 1;
+                const baseCost = developmentLevels[level];
+                const cost = calculateByUnit ? baseCost * course.weeks * unitsPerWeek : baseCost;
+                
+                document.getElementById(`cost-${course.id}`).textContent = 
+                    '$' + cost.toLocaleString();
+                total += cost;
+            });
+            
+            document.getElementById('totalCost').textContent = '$' + total.toLocaleString();
+        }
+
+        // Initial setup
+        document.getElementById('courseList').innerHTML = courses.map(createRow).join('');
+        updateCalculations();
+    </script>
+</body>
+</html>
