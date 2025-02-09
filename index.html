@@ -20,6 +20,11 @@
             background-color: #f8f8f8;
             font-weight: bold;
         }
+        .role-breakdown {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
         .grand-total-row {
             background-color: #e0e0e0;
             font-weight: bold;
@@ -36,6 +41,9 @@
         <label>
             <input type="checkbox" id="existingContent" onchange="updateCalculations()">
             Existing content (25% discount)
+        </label>
+        <label>
+            Project Manager Rate: $<input type="number" id="pmRate" value="60" style="width: 60px" onchange="updateCalculations()">
         </label>
     </div>
 
@@ -94,15 +102,33 @@
     </table>
 
     <script>
-        const developmentLevels = {
-            'Simple Async': 4329,
-            'Simple Sync': 2408,
-            'Average Async': 7067,
-            'Average Sync': 4116,
-            'Complex Async': 10212,
-            'Complex Sync': 6216,
-            'Complex Async + Video': 20212,
-            'Complex Sync + Video': 16216
+        const developmentHours = {
+            'Simple Async': 117,
+            'Simple Sync': 86,
+            'Average Async': 191,
+            'Average Sync': 147,
+            'Complex Async': 276,
+            'Complex Sync': 222,
+            'Complex Async + Video': 276,
+            'Complex Sync + Video': 222
+        };
+
+        const tasks = [
+            { name: "Project Plan", percentage: 0.02, role: "projectManager" },
+            { name: "Content Analysis", percentage: 0.05, role: "instructionalDesigner" },
+            { name: "Media Design", percentage: 0.10, role: "instructionalDesigner" },
+            { name: "Prototype", percentage: 0.05, role: "instructionalDesigner" },
+            { name: "Flowcharts", percentage: 0.03, role: "instructionalDesigner" },
+            { name: "Scripts", percentage: 0.19, role: "instructionalDesigner" },
+            { name: "Media Production", percentage: 0.13, role: "instructionalDesigner" },
+            { name: "Author Course", percentage: 0.28, role: "elearningDesigner" },
+            { name: "Evaluate", percentage: 0.15, role: "elearningDesigner" }
+        ];
+
+        const rates = {
+            projectManager: 60,
+            instructionalDesigner: 28,
+            elearningDesigner: 37
         };
 
         const mainCourses = [
@@ -125,10 +151,39 @@
             { id: 14, name: 'How Abuse Affects Victims/Survivors', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false }
         ];
 
+        function calculateRoleCosts(baseHours) {
+            const roleHours = {
+                projectManager: 0,
+                instructionalDesigner: 0,
+                elearningDesigner: 0
+            };
+
+            tasks.forEach(task => {
+                const hours = baseHours * task.percentage;
+                roleHours[task.role] += hours;
+            });
+
+            const roleCosts = {};
+            let totalCost = 0;
+            Object.entries(roleHours).forEach(([role, hours]) => {
+                const rate = role === 'projectManager' ? 
+                    parseFloat(document.getElementById('pmRate').value) : 
+                    rates[role];
+                const cost = hours * rate;
+                roleCosts[role] = { hours, cost };
+                totalCost += cost;
+            });
+
+            return { roleCosts, totalCost };
+        }
+
         function createRow(course) {
             return `
                 <tr>
-                    <td>${course.name}</td>
+                    <td>
+                        ${course.name}
+                        <div id="breakdown-${course.id}" class="role-breakdown"></div>
+                    </td>
                     <td>${course.weeks}</td>
                     <td class="units-column" style="display:none">
                         <input type="number" min="1" value="${course.unitsPerWeek}" 
@@ -136,7 +191,7 @@
                     </td>
                     <td>
                         <select onchange="updateCalculations()" data-id="${course.id}">
-                            ${Object.keys(developmentLevels).map(level => 
+                            ${Object.keys(developmentHours).map(level => 
                                 `<option value="${level}" ${level === course.level ? 'selected' : ''}>
                                     ${level}
                                 </option>`
@@ -160,22 +215,31 @@
                 parseInt(document.querySelector(`input[data-id="${course.id}"]`).value) : 1;
             const hasExisting = document.querySelector(`input[type="checkbox"][data-id="${course.id}"]`).checked;
             
-            // Separate video cost from base development cost
-            const isVideoLevel = level.includes('Video');
-            const videoCost = isVideoLevel ? 10000 : 0; // $2000 * 5 minutes
-            let developmentCost = isVideoLevel ? 
-                developmentLevels[level.replace(' + Video', '')] : 
-                developmentLevels[level];
-
-            if (existingContent && hasExisting) {
-                developmentCost = developmentCost * 0.75; // 25% discount for existing content
-            }
+            const baseHours = developmentHours[level];
+            let { roleCosts, totalCost } = calculateRoleCosts(baseHours);
             
-            const totalDevelopmentCost = calculateByUnit ? 
-                developmentCost * course.weeks * unitsPerWeek : 
-                developmentCost;
+            if (existingContent && hasExisting) {
+                totalCost = totalCost * 0.75;
+                Object.values(roleCosts).forEach(role => {
+                    role.cost *= 0.75;
+                });
+            }
 
-            return totalDevelopmentCost + videoCost; // Video cost added only once
+            const isVideoLevel = level.includes('Video');
+            const videoCost = isVideoLevel ? 10000 : 0;
+            
+            const finalCost = (calculateByUnit ? totalCost * course.weeks * unitsPerWeek : totalCost) + videoCost;
+
+            // Update role breakdown display
+            const breakdownElement = document.getElementById(`breakdown-${course.id}`);
+            if (breakdownElement) {
+                const breakdownText = Object.entries(roleCosts)
+                    .map(([role, data]) => `${role}: ${data.hours.toFixed(1)}h ($${data.cost.toFixed(2)})`)
+                    .join(' | ');
+                breakdownElement.innerHTML = breakdownText + (isVideoLevel ? ' | Video: $10,000' : '');
+            }
+
+            return finalCost;
         }
 
         function updateCalculations() {
@@ -183,6 +247,9 @@
             const existingContent = document.getElementById('existingContent').checked;
             const unitsColumns = document.querySelectorAll('.units-column');
             unitsColumns.forEach(col => col.style.display = calculateByUnit ? '' : 'none');
+
+            // Update rates
+            rates.projectManager = parseFloat(document.getElementById('pmRate').value);
 
             // Calculate main courses total
             let mainTotal = 0;
