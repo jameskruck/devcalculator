@@ -4,12 +4,26 @@
     <title>Course Development Cost Calculator</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
         select, input { padding: 5px; }
         .right { text-align: right; }
         .controls { margin-bottom: 20px; }
         .controls label { margin-right: 20px; }
+        .section-header { 
+            background-color: #f0f0f0; 
+            padding: 10px; 
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .subtotal-row {
+            background-color: #f8f8f8;
+            font-weight: bold;
+        }
+        .grand-total-row {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -24,7 +38,10 @@
             Existing content (25% discount)
         </label>
     </div>
-    <table id="courseTable">
+
+    <!-- Main Courses -->
+    <div class="section-header">Main Courses</div>
+    <table id="mainCoursesTable">
         <thead>
             <tr>
                 <th>Course</th>
@@ -35,14 +52,45 @@
                 <th class="right">Cost</th>
             </tr>
         </thead>
-        <tbody id="courseList">
+        <tbody id="mainCoursesList">
         </tbody>
         <tfoot>
-            <tr>
-                <td colspan="5" class="right"><strong>Total:</strong></td>
-                <td class="right" id="totalCost">$0</td>
+            <tr class="subtotal-row">
+                <td colspan="5" class="right"><strong>Main Courses Subtotal:</strong></td>
+                <td class="right" id="mainCoursesTotal">$0</td>
             </tr>
         </tfoot>
+    </table>
+
+    <!-- Additional Modules -->
+    <div class="section-header">Additional Modules</div>
+    <table id="additionalModulesTable">
+        <thead>
+            <tr>
+                <th>Module</th>
+                <th>Weeks</th>
+                <th class="units-column" style="display:none">Units per Week</th>
+                <th>Development Level</th>
+                <th>Has Existing Content</th>
+                <th class="right">Cost</th>
+            </tr>
+        </thead>
+        <tbody id="additionalModulesList">
+        </tbody>
+        <tfoot>
+            <tr class="subtotal-row">
+                <td colspan="5" class="right"><strong>Additional Modules Subtotal:</strong></td>
+                <td class="right" id="additionalModulesTotal">$0</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Grand Total -->
+    <table>
+        <tr class="grand-total-row">
+            <td colspan="5" class="right"><strong>GRAND TOTAL:</strong></td>
+            <td class="right" id="grandTotal">$0</td>
+        </tr>
     </table>
 
     <script>
@@ -57,7 +105,7 @@
             'Complex Sync + Video': 16216
         };
 
-        const courses = [
+        const mainCourses = [
             { id: 1, name: 'Continuing Education', weeks: 14, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
             { id: 2, name: 'Prevention of Sexual Abuse in Optometric Practice', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
             { id: 3, name: 'Foundational Concepts of Professional Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
@@ -68,6 +116,13 @@
             { id: 8, name: 'Foundational Concepts of Professional Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
             { id: 9, name: 'Health Promotion and Caring for Self, Colleagues and Clients II', weeks: 14, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
             { id: 10, name: 'Writing for Professional Success in Nursing', weeks: 14, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false }
+        ];
+
+        const additionalModules = [
+            { id: 11, name: 'Organizational Safety Planning', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
+            { id: 12, name: 'Responding to Disclosures', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
+            { id: 13, name: 'Duty to Report Suspected Child Abuse', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false },
+            { id: 14, name: 'How Abuse Affects Victims/Survivors', weeks: 2, level: 'Simple Async', unitsPerWeek: 1, hasExisting: false }
         ];
 
         function createRow(course) {
@@ -99,36 +154,62 @@
             `;
         }
 
+        function calculateCost(course, calculateByUnit, existingContent) {
+            const level = document.querySelector(`select[data-id="${course.id}"]`).value;
+            const unitsPerWeek = calculateByUnit ? 
+                parseInt(document.querySelector(`input[data-id="${course.id}"]`).value) : 1;
+            const hasExisting = document.querySelector(`input[type="checkbox"][data-id="${course.id}"]`).checked;
+            
+            // Separate video cost from base development cost
+            const isVideoLevel = level.includes('Video');
+            const videoCost = isVideoLevel ? 10000 : 0; // $2000 * 5 minutes
+            let developmentCost = isVideoLevel ? 
+                developmentLevels[level.replace(' + Video', '')] : 
+                developmentLevels[level];
+
+            if (existingContent && hasExisting) {
+                developmentCost = developmentCost * 0.75; // 25% discount for existing content
+            }
+            
+            const totalDevelopmentCost = calculateByUnit ? 
+                developmentCost * course.weeks * unitsPerWeek : 
+                developmentCost;
+
+            return totalDevelopmentCost + videoCost; // Video cost added only once
+        }
+
         function updateCalculations() {
             const calculateByUnit = document.getElementById('calculateByUnit').checked;
             const existingContent = document.getElementById('existingContent').checked;
             const unitsColumns = document.querySelectorAll('.units-column');
             unitsColumns.forEach(col => col.style.display = calculateByUnit ? '' : 'none');
 
-            let total = 0;
-            courses.forEach(course => {
-                const level = document.querySelector(`select[data-id="${course.id}"]`).value;
-                const unitsPerWeek = calculateByUnit ? 
-                    parseInt(document.querySelector(`input[data-id="${course.id}"]`).value) : 1;
-                const hasExisting = document.querySelector(`input[type="checkbox"][data-id="${course.id}"]`).checked;
-                
-                let baseCost = developmentLevels[level];
-                if (existingContent && hasExisting) {
-                    baseCost = baseCost * 0.75; // 25% discount for existing content
-                }
-                
-                const cost = calculateByUnit ? baseCost * course.weeks * unitsPerWeek : baseCost;
-                
-                document.getElementById(`cost-${course.id}`).textContent = 
-                    '$' + cost.toLocaleString();
-                total += cost;
+            // Calculate main courses total
+            let mainTotal = 0;
+            mainCourses.forEach(course => {
+                const cost = calculateCost(course, calculateByUnit, existingContent);
+                document.getElementById(`cost-${course.id}`).textContent = '$' + cost.toLocaleString();
+                mainTotal += cost;
             });
-            
-            document.getElementById('totalCost').textContent = '$' + total.toLocaleString();
+            document.getElementById('mainCoursesTotal').textContent = '$' + mainTotal.toLocaleString();
+
+            // Calculate additional modules total
+            let additionalTotal = 0;
+            additionalModules.forEach(course => {
+                const cost = calculateCost(course, calculateByUnit, existingContent);
+                document.getElementById(`cost-${course.id}`).textContent = '$' + cost.toLocaleString();
+                additionalTotal += cost;
+            });
+            document.getElementById('additionalModulesTotal').textContent = '$' + additionalTotal.toLocaleString();
+
+            // Update grand total
+            const grandTotal = mainTotal + additionalTotal;
+            document.getElementById('grandTotal').textContent = '$' + grandTotal.toLocaleString();
         }
 
         // Initial setup
-        document.getElementById('courseList').innerHTML = courses.map(createRow).join('');
+        document.getElementById('mainCoursesList').innerHTML = mainCourses.map(createRow).join('');
+        document.getElementById('additionalModulesList').innerHTML = additionalModules.map(createRow).join('');
         updateCalculations();
     </script>
 </body>
